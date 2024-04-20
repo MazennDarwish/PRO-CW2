@@ -36,6 +36,7 @@ thread send_thread[MAX_CLIENT_NUM];
 int current_client_num = 0;
 int users_per_port[MAX_CLIENT_NUM] = {0};
 
+//Struct for message queue
 struct MessageQueue {
     string messages[MAX_MESSAGES];
     int front;
@@ -45,6 +46,7 @@ struct MessageQueue {
 
     MessageQueue() : front(0), rear(0) {}
 
+    //Push message into the queue
     void push(const string& message) {
         unique_lock<mutex> lock(queue_mutex);
         messages[rear] = message;
@@ -52,6 +54,7 @@ struct MessageQueue {
         cv.notify_one();
     }
 
+    // Pop message from the queue
     string pop() {
         unique_lock<mutex> lock(queue_mutex);
         while (front == rear) {
@@ -63,6 +66,7 @@ struct MessageQueue {
     }
 };
 
+// Struct for client data
 struct Client {
     int valid;
     int fd_id;
@@ -78,6 +82,7 @@ struct Client {
 mutex client_mutex[MAX_CLIENT_NUM];
 condition_variable client_cv[MAX_CLIENT_NUM];
 
+// Function prototypes
 void chat(Client *data);
 void handle_send(Client *data);
 void handle_recv(Client *data);
@@ -88,6 +93,7 @@ void serverSetup(int server_port);
 string caesarEncrypt(string text, int shift);
 string caesarDecrypt(string text, int shift);
 
+// Main function
 int main() {
     int choice;
     while (true) {
@@ -153,6 +159,7 @@ int main() {
     return 0;
 }
 
+// Setup the server
 void serverSetup(int server_port) {
     int server_sock;
     if ((server_sock = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
@@ -177,6 +184,7 @@ void serverSetup(int server_port) {
     printf("Server started successfully!\n");
     printf("You can join the chatroom by connecting to 127.0.0.1:%d\n\n", server_port);
 
+     // Accept incoming connections
     while (1) {
         int client_sock = accept(server_sock, NULL, NULL);
         if (client_sock == -1) {
@@ -210,6 +218,7 @@ void serverSetup(int server_port) {
                 perror("send");
         }
 
+        // Receive username from client
         char name[NAME_LEN + 1] = {0};
         ssize_t state = recv(client_sock, name, NAME_LEN, 0);
         if (state < 0) {
@@ -221,6 +230,7 @@ void serverSetup(int server_port) {
             continue;
         }
 
+        // Add client to the chatroom
         for (int i = 0; i < MAX_CLIENT_NUM; i++) {
             if (!client[i].valid) {
                 num_mutex.lock();
@@ -240,6 +250,7 @@ void serverSetup(int server_port) {
         }
     }
 
+    // Close all sockets and exit
     for (int i = 0; i < MAX_CLIENT_NUM; i++)
         if (client[i].valid)
             shutdown(client[i].socket, 2);
@@ -247,7 +258,9 @@ void serverSetup(int server_port) {
     exit(EXIT_SUCCESS);
 }
 
+// Chat function
 void chat(Client *data) {
+    // Welcome message
     char hello[100];
     sprintf(hello, "Hello %s, Welcome to the chatroom. Current online Users: %d\n", data->name, current_client_num);
     data->message_q.push(hello);
@@ -260,10 +273,13 @@ void chat(Client *data) {
         }
     }
 
+// Start the send thread
     send_thread[data->fd_id] = thread(handle_send, data);
 
+    // Handle receiving messages
     handle_recv(data);
 
+    // Remove client from chatroom
     num_mutex.lock();
     data->valid = 0;
     --current_client_num;
@@ -271,11 +287,13 @@ void chat(Client *data) {
 
     printf("%s left the chatroom. Online Users number: %d\n", data->name, current_client_num);
 
+    // Join send thread
     send_thread[data->fd_id].join();
 
     return;
 }
 
+// Handle sending messages
 void handle_send(Client *data) {
     while (1) {
         string message_buffer = data->message_q.pop();
@@ -295,6 +313,7 @@ void handle_send(Client *data) {
     }
 }
 
+// Handle receiving messages
 void handle_recv(Client *data) {
     string message_buffer;
     int message_len = 0;
@@ -318,6 +337,7 @@ void handle_recv(Client *data) {
                 // Decrypt the message
                 string decryptedMessage = caesarDecrypt(message_buffer, 3);  // Using a shift of 3
 
+                // Push message to other clients
                 for (int j = 0; j < MAX_CLIENT_NUM; j++) {
                     if (client[j].valid && client[j].socket != data->socket) {
                         client[j].message_q.push(decryptedMessage);
@@ -332,6 +352,7 @@ void handle_recv(Client *data) {
     }
 }
 
+// Caesar encryption
 string caesarEncrypt(string text, int shift) {
     string result = "";
     for (char c : text) {
@@ -344,10 +365,12 @@ string caesarEncrypt(string text, int shift) {
     return result;
 }
 
+// Caesar decryption
 string caesarDecrypt(string text, int shift) {
     return caesarEncrypt(text, 26 - shift);  // Decryption is the reverse of encryption
 }
 
+// Check if user exists in credentials file
 bool userExists(const string &username) {
     ifstream file(CREDENTIALS_FILE);
     string line;
@@ -362,6 +385,7 @@ bool userExists(const string &username) {
     return false;
 }
 
+// Validate user credentials
 bool validateUser(const string &username, const string &password) {
     ifstream file(CREDENTIALS_FILE);
     string line;
@@ -455,4 +479,3 @@ bool addUser(const string &username, const string &password) {
     file.close();
     return true;
 }
-
