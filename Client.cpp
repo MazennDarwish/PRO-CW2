@@ -13,23 +13,31 @@
 
 using namespace std;
 
+//Constants
 #define BUFFER_LEN 1024
 #define NAME_LEN 20
 #define CREDENTIALS_FILE "client.txt"
 
+
+//Struct to hold user credentials
 struct Credentials {
     char username[NAME_LEN + 1];
     char password[NAME_LEN + 1];
 };
 
+
+//Global variable to store user's name
 char name[NAME_LEN + 1];
 
+
+//Function to handle receiving messages from the  server
 void handle_recv(int client_sock) {
     string message_buffer;
     int message_len = 0;
     char buffer[BUFFER_LEN + 1];
     int buffer_len = 0;
 
+    //Receive messages from the server
     while ((buffer_len = recv(client_sock, buffer, BUFFER_LEN, 0)) > 0) {
         for (int i = 0; i < buffer_len; i++) {
             if (message_len == 0)
@@ -39,6 +47,7 @@ void handle_recv(int client_sock) {
 
             message_len++;
 
+            //If newline character is recevied print the message
             if (buffer[i] == '\n') {
                 cout << message_buffer << endl;
                 message_len = 0;
@@ -50,10 +59,12 @@ void handle_recv(int client_sock) {
     printf("The Server has been shutdown!\n");
 }
 
+//Function for user signup
 bool signup(const char* username, const char* password) {
     ifstream file(CREDENTIALS_FILE);
     if (file.is_open()) {
         string stored_username;
+        // Checks if username already exists in the file
         while (file >> stored_username) {
             if (stored_username == username) {
                 cout << "Username already exists. Please choose a different username.\n";
@@ -64,12 +75,14 @@ bool signup(const char* username, const char* password) {
         file.close();
     }
 
+    // Open file for writing
     ofstream outfile(CREDENTIALS_FILE, ios::app);
     if (!outfile.is_open()) {
         cerr << "Failed to open file for writing." << endl;
         return false;
     }
 
+   // Hash the password using SHA256
     EVP_MD_CTX *mdctx;
     const EVP_MD *md;
     unsigned char md_value[EVP_MAX_MD_SIZE];
@@ -87,17 +100,20 @@ bool signup(const char* username, const char* password) {
     EVP_DigestFinal_ex(mdctx, md_value, &md_len);
     EVP_MD_CTX_free(mdctx);
 
+      // Convert hashed password to hexadecimal string
     stringstream ss;
     for (int i = 0; i < md_len; i++) {
         ss << hex << setw(2) << setfill('0') << (int)md_value[i];
     }
     string hashedPassword = ss.str();
 
+   // Write username and hashed password to file
     outfile << username << ' ' << hashedPassword << endl;
     outfile.close();
     return true;
 }
 
+// Function for user login
 bool login(const char* username, const char* password) {
     ifstream file(CREDENTIALS_FILE);
     if (!file.is_open()) {
@@ -106,8 +122,10 @@ bool login(const char* username, const char* password) {
     }
 
     string stored_username, stored_password;
+    // Check if username and hashed password match the records in the file
     while (file >> stored_username >> stored_password) {
         if (stored_username == username) {
+             // Hash the provided password
             EVP_MD_CTX *mdctx;
             const EVP_MD *md;
             unsigned char md_value[EVP_MAX_MD_SIZE];
@@ -125,12 +143,14 @@ bool login(const char* username, const char* password) {
             EVP_DigestFinal_ex(mdctx, md_value, &md_len);
             EVP_MD_CTX_free(mdctx);
 
+            // Convert hashed password to hexadecimal string
             stringstream ss;
             for (int i = 0; i < md_len; i++) {
                 ss << hex << setw(2) << setfill('0') << (int)md_value[i];
             }
             string hashedPassword = ss.str();
 
+            // If password matches, return true
             if (stored_password == hashedPassword) {
                 file.close();
                 return true;
@@ -141,6 +161,7 @@ bool login(const char* username, const char* password) {
     return false;
 }
 
+// Function to encrypt text using Caesar cipher
 string caesarEncrypt(string text, int shift) {
     string result = "";
     for (char c : text) {
@@ -153,9 +174,11 @@ string caesarEncrypt(string text, int shift) {
     return result;
 }
 
+// Main function
 int main() {
     char choice;
     printf("Welcome to the chat application!\n");
+    // Main menu loop
     while (1) {
         printf("1. Sign up\n2. Login\n3. Exit\nEnter your choice: ");
         cin >> choice;
@@ -169,6 +192,7 @@ int main() {
                 printf("Enter your password: ");
                 cin.getline(password, NAME_LEN);
 
+                // Attempt signup until successful
                 while (!signup(username, password)) {
                     cout << "Failed to sign up. Please try again." << endl;
                     printf("Enter your desired username: ");
@@ -189,6 +213,7 @@ int main() {
                 printf("Enter your password: ");
                 cin.getline(password, NAME_LEN);
 
+                // Attempt login
                 if (!login(username, password)) {
                     cout << "Invalid username or password. Please try again." << endl;
                     continue;
@@ -206,6 +231,7 @@ int main() {
                 break;
         }
 
+        // Connect to server
         int client_sock;
         if ((client_sock = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
             perror("socket");
@@ -216,6 +242,7 @@ int main() {
 
         int server_port = 0;
         char server_ip[16] = {0};
+         // Get server IP address and port number from user
         while (1) {
             printf("Please enter IP address of the server: ");
             scanf("%s", server_ip);
@@ -246,13 +273,16 @@ int main() {
             printf("\rConnect Successfully!\n");
         }
 
+        // Send username to server
         if (send(client_sock, name, strlen(name), 0) < 0) {
             perror("send");
             return -1;
         }
 
+        // Start thread to handle receiving messages from server
         thread recv_thread(handle_recv, client_sock);
 
+        // Main loop to send messages to server
         while (1) {
             char message[BUFFER_LEN + 1];
             cin.get(message, BUFFER_LEN);
@@ -277,11 +307,13 @@ int main() {
             n++;
             printf("\n");
 
+            // Encrypt message using Caesar cipher
             string encryptedMessage = caesarEncrypt(string(message), 3);
 
             int sent_len = 0;
             int trans_len = BUFFER_LEN > n ? n : BUFFER_LEN;
 
+            // Send encrypted message to server
             while (n > 0) {
                 int len = send(client_sock, encryptedMessage.c_str() + sent_len, trans_len, 0);
                 if (len < 0) {
@@ -292,11 +324,11 @@ int main() {
                 sent_len += len;
                 trans_len = BUFFER_LEN > n ? n : BUFFER_LEN;
             }
-            memset(message, 0, sizeof(message));
+            memset(message, 0, sizeof(message)); // Clear message buffer
         }
 
-        recv_thread.join();
-        shutdown(client_sock, 2);
+        recv_thread.join(); // Wait for receiving thread to finish
+        shutdown(client_sock, 2); // Close socket
     }
     return 0;
 }
