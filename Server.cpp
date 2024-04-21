@@ -14,10 +14,7 @@
 #include <openssl/err.h>
 #include <openssl/ssl.h>
 
-
-
 using namespace std;
-
 
 // Constants
 #define BUFFER_LEN 1024
@@ -26,8 +23,6 @@ using namespace std;
 #define CREDENTIALS_FILE "credentials.txt"
 #define MAX_MESSAGE_LEN 1024
 #define MAX_MESSAGES 100
-
-
 
 // Mutexes and condition variables for thread synchronization
 mutex num_mutex;
