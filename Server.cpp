@@ -2,6 +2,8 @@
 #include <fstream>
 #include <string>
 #include <cstring>
+#include <iomanip>
+#include <sstream>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <thread>
@@ -11,8 +13,8 @@
 #include <openssl/rand.h>
 #include <openssl/err.h>
 #include <openssl/ssl.h>
-#include <iomanip>
-#include <sstream>
+
+
 
 using namespace std;
 
@@ -432,6 +434,7 @@ bool validateUser(const string &username, const string &password) {
     return false;
 }
 
+// Add user to credentials file
 bool addUser(const string &username, const string &password) {
     // Check if the username already exists
     if (userExists(username)) {
